@@ -1,6 +1,6 @@
 ![alt text](Doc/BlinkStick_Doc.png)
 
-## Use BlinkStick devices in Unity3D with the following benefits
+## Use [BlinkStick](https://blinkstick.com/) devices in Unity with the following benefits
 - Specific [BlinkStick .Net](https://github.com/ebadier/BlinkStickDotNet) library allowing maximum compatibility with Unity3D
 - A complete test scene to understand the use of the library
 
