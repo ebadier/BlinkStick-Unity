@@ -8,4 +8,5 @@
 Unity ***2017.4.35f1*** and newer versions
 
 ## Acknowledgments
-[SnapshotGames/cui_color_picker](https://github.com/SnapshotGames/cui_color_picker)
+- [SnapshotGames](https://github.com/SnapshotGames) for their very nice and lightweight [unity color's picker](https://github.com/SnapshotGames/cui_color_picker)
+- [pxc](https://github.com/pxc) for his MIT licensed [.NET API for BlinkStick](https://github.com/pxc/BlinkStickDotNet)
