@@ -16,66 +16,181 @@
 * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.							  *
 ******************************************************************************************************************************************************/
 
+using HidLibrary;
+using System.Linq;
 using UnityEngine;
 
 namespace BlinkStick.Unity
 {
+	public struct BlinkStickInfos
+    {
+        public readonly string deviceVendorID;
+        public readonly string deviceProductID;
+        public readonly string deviceVersion;
+		public readonly string deviceSerialNumber;
+        public readonly string deviceDescription;
+        public readonly string devicePath;
+
+        public BlinkStickInfos(HidDevice pDevice)
+        {
+            deviceVendorID = pDevice.Attributes.VendorHexId;
+            deviceProductID = pDevice.Attributes.ProductHexId;
+            deviceVersion = pDevice.Attributes.Version.ToString();
+            BlinkStick.TryGetSerialNumber(pDevice, out deviceSerialNumber);
+            deviceDescription = pDevice.Description;
+            devicePath = pDevice.DevicePath;
+		}
+
+        public string ToString(bool pShort)
+		{
+            if(pShort)
+			{
+                return string.Format("VendorID={0}, ProductID={1}, Version={2}, SN={3}",
+                deviceVendorID, deviceProductID, deviceVersion, deviceSerialNumber);
+            }
+            else
+			{
+                return string.Format("VendorID={0}, ProductID={1}, Version={2}, SN={3}, Description={4}, Path={5}",
+               deviceVendorID, deviceProductID, deviceVersion, deviceSerialNumber, deviceDescription, devicePath);
+            }
+		}
+    }
+
 	/// <summary>
-	/// Works with the first BlinkStick device connected to this system.
+	/// To use BlinkStick devices (https://blinkstick.com/) in Unity.
 	/// </summary>
 	public sealed class BlinkStick
 	{
-		public bool Connected { get { return _blinkStick != null; } }
+        public const int VendorID = 0X20A0; // 8352
+        public const int ProductID = 0x41E5; // 16969
+        public static readonly Color32 OffColor = Color.black;
 
-		private BlinkStickDotNet.BlinkStick _blinkStick = null;
+        /// <summary>
+        /// Is there a BlinkStick device connected ?
+        /// </summary>
+        public bool Connected { get { return _stickDevice != null; } }
 
-		public bool Connect()
+        private HidDevice _stickDevice = null;
+        private BlinkStickInfos? _stickInfos = null;
+
+        /// <summary>
+        /// Destructor.
+        /// Ensure resources are released.
+        /// </summary>
+        ~BlinkStick()
 		{
-			if(!Connected)
+            Disconnect();
+		}
+
+        public string ToString(bool pShort)
+		{
+            string msg;
+            if (Connected)
+            {
+                msg = _stickInfos.Value.ToString(pShort);
+            }
+            else
+            {
+                msg = "null device";
+            }
+            return msg;
+        }
+
+        /// <summary>
+        /// Connect to the BlinkStick device with the given serial number.
+        /// Returns the first available device if serial number is not specified (null or empty).
+        /// </summary>
+        /// <param name="pSerialNumber">The BlinkStick device serial number</param>
+        public bool Connect(string pSerialNumber = "")
+        {
+            if (!Connected)
 			{
-				try
+                HidDevice[] devices = HidDevices.Enumerate(VendorID, ProductID).ToArray();
+                if (devices.Length > 0)
+                {
+                    if(string.IsNullOrEmpty(pSerialNumber))
+					{
+                        // Get the first available device if serial number not specified.
+                        _stickDevice = devices[0];
+                    }
+                    else
+					{
+                        // Get the device with the given serial number.
+                        string sn;
+                        foreach (HidDevice device in devices)
+                        {
+                            if (TryGetSerialNumber(device, out sn) && (pSerialNumber == sn))
+                            {
+                                _stickDevice = device;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Create BlinkStickInfos only if there is a device connected.
+                    if (Connected)
+					{
+                        _stickInfos = new BlinkStickInfos(_stickDevice);
+                    }
+                }
+            }
+            return Connected;
+        }
+
+        /// <summary>
+        /// Disconnect any connected BlinkStick device.
+        /// </summary>
+        public void Disconnect()
+        {
+            if (Connected)
+            {
+                SetColor(OffColor);
+                _stickDevice.Dispose();
+                _stickDevice = null;
+                _stickInfos = null;
+            }
+        }
+
+        /// <summary>
+        /// Get the color of the connected BlinkStick device.
+        /// </summary>
+        public Color32 GetColor()
+        {
+            Color32 color = OffColor;
+            if (Connected)
+            {
+                byte[] data;
+                if(_stickDevice.ReadFeatureData(out data, 1))
 				{
-					// Connect to the first plugged BlinkStick.
-					_blinkStick = new BlinkStickDotNet.BlinkStick();
-				}
-				catch
-				{
-					// No device found.
-					_blinkStick = null;
-				}
-			}
-			return Connected;
-		}
+                    color.r = data[1];
+                    color.g = data[2];
+                    color.b = data[3];
+                }
+            }
+            return color;
+        }
 
-		public void Disconnect()
-		{
-			if(Connected)
-			{
-				_blinkStick.Dispose();
-				_blinkStick = null;
-			}
-		}
+        /// <summary>
+        /// Set the color of the connected BlinkStick device.
+        /// </summary>
+        public void SetColor(Color32 pColor)
+        {
+            if (Connected)
+            {
+                _stickDevice.WriteFeatureData(new byte[] { 1, pColor.r, pColor.g, pColor.b });
+            }
+        }
 
-		public void SetColor(Color32 pColor)
+        internal static bool TryGetSerialNumber(HidDevice pDevice, out string pSN)
 		{
-			if (Connected)
+            pSN = "";
+            byte[] data;
+            bool success = pDevice.ReadSerialNumber(out data);
+            if(success)
 			{
-				_blinkStick.LedColor = System.Drawing.Color.FromArgb(pColor.a, pColor.r, pColor.g, pColor.b);
-			}
-		}
-
-		public Color32 GetColor()
-		{
-			Color32 res = Color.black;
-			if (Connected)
-			{
-				System.Drawing.Color color = _blinkStick.LedColor;
-				res.a = color.A;
-				res.r = color.R;
-				res.g = color.G;
-				res.b = color.B;
-			}
-			return res;
-		}
-	}
+                pSN = System.BitConverter.ToString(data).Replace("-00", "");
+            }
+            return success;
+        }
+    }
 }

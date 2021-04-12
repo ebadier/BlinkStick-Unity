@@ -26,19 +26,23 @@ namespace BlinkStick.Unity
 	/// </summary>
 	public sealed class BlinkStick_Test : MonoBehaviour
 	{
+		[Tooltip("If having multiple BlinkStick, you can specify the BlinkStick to connect to.")]
+		public string blinkStickSerialNumber = "";
+		[Tooltip("To Debug BlinkStick.GetColor()")]
+		public bool logBlinkStickColor = false;
 		public Button blinkStickConnect_Button;
 		public GameObject colorPickerParent;
 		public CUIColorPicker colorPicker;
 		
 		private Text _blinkStickConnect_Button_Text;
-		private BlinkStick _blinkStick = new BlinkStick();
+		private readonly BlinkStick _blinkStick = new BlinkStick();
 
 		void Awake()
 		{
 			_blinkStickConnect_Button_Text = blinkStickConnect_Button.GetComponentInChildren<Text>(true);
-			_OnBlinkStickDisconnected();
+			_OnBlinkStickDisconnected(false);
 
-			colorPicker.ColorChanged += (Color col) => _blinkStick.SetColor(col);
+			colorPicker.ColorChanged += _SetBlinkStickColor;
 			blinkStickConnect_Button.onClick.AddListener(_OnBlinkStickConnect_ButtonClick);
 		}
 
@@ -47,14 +51,23 @@ namespace BlinkStick.Unity
 			_blinkStick.Disconnect();
 		}
 
+		private void _SetBlinkStickColor(Color pColor)
+		{
+			_blinkStick.SetColor(pColor);
+			if(logBlinkStickColor)
+			{
+				Debug.Log("[BlinkStick] Color : " + _blinkStick.GetColor());
+			}
+		}
+
 		private void _OnBlinkStickConnect_ButtonClick()
 		{
 			if(_blinkStick.Connected)
 			{
 				_blinkStick.Disconnect();
-				_OnBlinkStickDisconnected();
+				_OnBlinkStickDisconnected(true);
 			}
-			else if(_blinkStick.Connect())
+			else if(_blinkStick.Connect(blinkStickSerialNumber))
 			{
 				_OnBlinkStickConnected();
 			}
@@ -63,14 +76,19 @@ namespace BlinkStick.Unity
 		private void _OnBlinkStickConnected()
 		{
 			colorPickerParent.SetActive(true);
-			_blinkStick.SetColor(colorPicker.Color);
 			_blinkStickConnect_Button_Text.text = "Disconnect";
+			_SetBlinkStickColor(colorPicker.Color);
+			Debug.Log("[BlinkStick] connected : " + _blinkStick.ToString(true));
 		}
 
-		private void _OnBlinkStickDisconnected()
+		private void _OnBlinkStickDisconnected(bool pLog)
 		{
 			colorPickerParent.SetActive(false);
 			_blinkStickConnect_Button_Text.text = "Connect";
+			if(pLog)
+			{
+				Debug.Log("[BlinkStick] disconnected.");
+			}
 		}
 	}
 }
